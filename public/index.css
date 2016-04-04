@@ -1,0 +1,140 @@
+html, body {
+	font-size: 62.5%;
+	height: 100%;
+	margin: 0 0;
+	padding: 0 0;
+}
+
+video {
+	width: 320px;
+	height: 100%;
+	margin: 0 auto;
+	display: block;
+	background-color: black;
+}
+
+textarea {
+	width: 100%;
+	overflow: hidden;
+}
+
+#container {
+	box-sizing: border-box;
+	height: 100%;
+	padding: 40px 10px 150px 10px;
+	overflow: hidden;
+	min-width: 1100px;
+}
+
+#chatRoom {
+	height: 100%;
+	width: 1100px;
+	margin: 0 auto;
+}
+
+.chatList {
+	box-sizing: border-box;
+	height: 100%;
+	border: 1px solid #ccc;
+	border-radius: 5px;
+	padding: 0 10px 10px 10px;
+}
+
+.chatForm {
+	overflow: hidden;
+	height: 75px;
+	margin: 10px 0 0 0;
+}
+
+.videoBox {
+	float: left;
+	width: 400px;
+	height: 100%;
+	position: relative;
+}
+
+.video {
+	height: 45%;
+}
+
+.videoBox .video:nth-of-type(2) {
+	position: absolute;
+	bottom: 0;
+	width: 100%;
+}
+
+.chatBox {
+	float: left;
+	width: 600px;
+	height: 100%;
+	margin: 0 0 0 15px;
+}
+
+.edit {
+	overflow-y: scroll;
+	height: 75px;
+	border: 1px solid #ccc;
+	border-radius: 5px;
+	font-size: 1.7rem;
+	padding: 4px 5px 0 5px;
+	box-sizing: border-box;
+}
+
+.edit:focus {
+	outline: none;
+}
+
+.btn {
+	width: 100px;
+	height: 75px;
+	border: 2px solid transparent;
+	border-radius: 10px;
+	font-size: 2rem;
+	outline: none;
+}
+
+.newButton {
+	background-color: #5bc0de;
+	border-color: #46b8da;
+	color: white;
+	float: left;
+	margin-right: 10px;
+}
+
+.newButton:active {
+	background-color: #31b0d5;
+    
+}
+
+.sendButton {
+	background-color: #fff;
+	border-color: #ccc;
+	float: right;
+	margin-left: 10px;
+}
+
+.sendButton:active {
+	background-color: #d4d4d4;
+}
+
+.message {
+	font-weight: bold;
+	font-size: 1.4rem;
+	float: left;
+}
+
+.onlineNumber {
+	float: right;
+	font-weight: bolder;
+	font-size: 1.4rem;
+	min-width: 40px;
+}
+
+.onlineNumber p::before {
+	content: "当前在线人数：";
+	font-weight: bold;
+}
+
+.forbidden {
+	cursor: not-allowed;
+}
