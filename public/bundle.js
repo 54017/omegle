@@ -78,7 +78,10 @@
 				return { chat: [], connectState: '点击缘起开始聊天!', number: '', sendButtonText: '发送', startButtonText: '缘起', condition: false };
 			},
 			componentDidMount: function () {
-				let connected = '捕获到小伙伴，先打个招呼吧~';
+				let connected = '捕获到小伙伴，先打个招呼吧~',
+				    start = '缘起',
+				    disconnected = '聊天结束，再见.';
+
 				//socket.io实时更新在线人数
 				socket.on('online number', function (number) {
 					this.setState({ number: number });
@@ -94,35 +97,36 @@
 				socket.on('finded', function () {
 					this.setState({ connectState: connected, condition: true });
 				}.bind(this));
+
+				//监控对方断开连接的情况
+				socket.on('chat over', function () {
+					this.setState({ connectState: disconnected, condition: false, startButtonText: start });
+				}.bind(this));
 			},
 
 			//开始按钮点击回调事件
 			startClickCallback: function () {
 				let start = '缘起',
 				    end = '缘灭',
-				    init = '点击缘起开始聊天!',
 				    connecting = '正在寻找小伙伴中...',
 				    disconnected = '聊天结束，再见.';
+
 				//开始按钮缘起缘灭切换
 				if (this.state.startButtonText === start) {
+					this.setState({ chat: [], connectState: connecting, startButtonText: end });
 					socket.emit('find stranger');
-					this.setState({ startButtonText: end });
 				} else {
-					this.setState({ startButtonText: start });
-				}
-				//根据开始按钮的状态转换聊天框内提示语的状态
-				let current = this.state.connectState;
-				if (current == init || current == disconnected) {
-					this.setState({ connectState: connecting });
-				} else {
-					this.setState({ connectState: disconnected });
+					socket.emit('chat over');
+					this.setState({ connectState: disconnected, startButtonText: start, condition: false });
 				}
 			},
 			render: function () {
 				return React.createElement(
 					'div',
 					{ className: 'chatBox' },
-					React.createElement(ChatList, { chat: this.state.chat, connectState: this.state.connectState, number: this.state.number }),
+					React.createElement(ConnectState, { message: this.state.connectState }),
+					React.createElement(OnlineNumber, { number: this.state.number }),
+					React.createElement(ChatList, { chat: this.state.chat }),
 					React.createElement(ChatForm, { startButtonText: this.state.startButtonText, sendButtonText: this.state.sendButtonText, condition: this.state.condition, startClickCallback: this.startClickCallback })
 				);
 			}
@@ -131,17 +135,17 @@
 		let ChatList = React.createClass({
 			displayName: 'ChatList',
 
+			componentDidUpdate: function () {
+				this.refs.chatList.scrollTop = this.refs.chatList.scrollHeight;
+			},
 			render: function () {
-				console.log("enter", this.props.chat);
 				let count = 0;
 				let chatNodes = this.props.chat.map(function (chat) {
 					return React.createElement(Chat, { author: chat.author, message: chat.message, key: ++count });
 				});
 				return React.createElement(
 					'div',
-					{ className: 'chatList' },
-					React.createElement(ConnectState, { message: this.props.connectState }),
-					React.createElement(OnlineNumber, { number: this.props.number }),
+					{ className: 'chatList', ref: 'chatList' },
 					chatNodes
 				);
 			}
@@ -189,8 +193,16 @@
 				this.setState({ text: e.target.value });
 			},
 			sendCallback: function () {
-				socket.emit('chat message', this.state.text);
-				this.setState({ text: '' });
+				if (this.props.condition && this.state.text) {
+					socket.emit('chat message', this.state.text);
+					this.setState({ text: '' });
+				}
+			},
+			handleKeyDown: function (e) {
+				if (e.keyCode == 13) {
+					e.preventDefault();
+					this.sendCallback();
+				}
 			},
 			render: function () {
 				return React.createElement(
@@ -201,7 +213,7 @@
 					React.createElement(
 						'div',
 						{ className: 'edit' },
-						React.createElement('textarea', { value: this.state.text, onChange: this.handleInput })
+						React.createElement('textarea', { value: this.state.text, onChange: this.handleInput, onKeyDown: this.handleKeyDown, disabled: !this.props.condition })
 					)
 				);
 			}
@@ -215,13 +227,14 @@
 					'div',
 					{ className: 'chat' },
 					React.createElement(
-						'span',
-						null,
-						this.props.author
-					),
-					React.createElement(
 						'p',
 						null,
+						React.createElement(
+							'span',
+							{ className: this.props.author.toLowerCase() },
+							this.props.author
+						),
+						': ',
 						this.props.message
 					)
 				);
@@ -288,9 +301,7 @@
 			displayName: 'SendButton',
 
 			handleClick: function () {
-				if (this.props.condition) {
-					this.props.sendCallback();
-				}
+				this.props.sendCallback();
 			},
 			render: function () {
 				let className = 'sendButton btn';
@@ -343,7 +354,7 @@
 
 
 	// module
-	exports.push([module.id, "html, body {\n\tfont-size: 62.5%;\n\theight: 100%;\n\tmargin: 0 0;\n\tpadding: 0 0;\n}\n\nvideo {\n\twidth: 320px;\n\theight: 100%;\n\tmargin: 0 auto;\n\tdisplay: block;\n\tbackground-color: black;\n}\n\ntextarea {\n\twidth: 100%;\n\toverflow: hidden;\n}\n\n#container {\n\tbox-sizing: border-box;\n\theight: 100%;\n\tpadding: 40px 10px 150px 10px;\n\toverflow: hidden;\n\tmin-width: 1100px;\n}\n\n#chatRoom {\n\theight: 100%;\n\twidth: 1100px;\n\tmargin: 0 auto;\n}\n\n.chatList {\n\tbox-sizing: border-box;\n\theight: 100%;\n\tborder: 1px solid #ccc;\n\tborder-radius: 5px;\n\tpadding: 0 10px 10px 10px;\n}\n\n.chatForm {\n\toverflow: hidden;\n\theight: 75px;\n\tmargin: 10px 0 0 0;\n}\n\n.videoBox {\n\tfloat: left;\n\twidth: 400px;\n\theight: 100%;\n\tposition: relative;\n}\n\n.video {\n\theight: 45%;\n}\n\n.videoBox .video:nth-of-type(2) {\n\tposition: absolute;\n\tbottom: 0;\n\twidth: 100%;\n}\n\n.chatBox {\n\tfloat: left;\n\twidth: 600px;\n\theight: 100%;\n\tmargin: 0 0 0 15px;\n}\n\n.edit {\n\toverflow-y: scroll;\n\theight: 75px;\n\tbox-sizing: border-box;\n}\n\n.edit textarea:focus {\n\toutline: none;\n}\n\n.btn {\n\twidth: 100px;\n\theight: 75px;\n\tborder: 2px solid transparent;\n\tborder-radius: 10px;\n\tfont-size: 2rem;\n\toutline: none;\n}\n\n.newButton {\n\tbackground-color: #5bc0de;\n\tborder-color: #46b8da;\n\tcolor: white;\n\tfloat: left;\n\tmargin-right: 10px;\n}\n\n.newButton:active {\n\tbackground-color: #31b0d5;\n    \n}\n\n.sendButton {\n\tbackground-color: #fff;\n\tborder-color: #ccc;\n\tfloat: right;\n\tmargin-left: 10px;\n}\n\n.sendButton:active {\n\tbackground-color: #d4d4d4;\n}\n\n.message {\n\tfont-weight: bold;\n\tfont-size: 1.4rem;\n\tfloat: left;\n}\n\n.onlineNumber {\n\tfloat: right;\n\tfont-weight: bolder;\n\tfont-size: 1.4rem;\n\tmin-width: 40px;\n}\n\n.onlineNumber p::before {\n\tcontent: \"\\5F53\\524D\\5728\\7EBF\\4EBA\\6570\\FF1A\";\n\tfont-weight: bold;\n}\n\n.forbidden {\n\tcursor: not-allowed;\n\tcolor: #333;\n\topacity: .65;\n\n}\n\n.btn.forbidden:active {\n\tbackground-color: #fff;\n}\n\n.edit textarea {\n\tfont-size: 1.7rem;\n\tbox-sizing: border-box;\n\theight: 100%;\n\tpadding: 4px 4px 4px 4px;\n\tborder-color: #ccc;\n\tresize: none;\n}", ""]);
+	exports.push([module.id, "html, body {\n\tfont-size: 62.5%;\n\theight: 100%;\n\tmargin: 0 0;\n\tpadding: 0 0;\n}\n\nvideo {\n\twidth: 320px;\n\theight: 100%;\n\tmargin: 0 auto;\n\tdisplay: block;\n\tbackground-color: black;\n}\n\ntextarea {\n\twidth: 100%;\n\toverflow: hidden;\n}\n\n#container {\n\tbox-sizing: border-box;\n\theight: 100%;\n\tpadding: 60px 10px 150px 10px;\n\toverflow: hidden;\n\tmin-width: 1100px;\n}\n\n#chatRoom {\n\theight: 100%;\n\twidth: 1100px;\n\tmargin: 0 auto;\n}\n\n.chatList {\n\tbox-sizing: border-box;\n\theight: 100%;\n\tborder: 1px solid #ccc;\n\tborder-radius: 5px;\n\tpadding: 0 10px 10px 10px;\n\toverflow-y: auto;\n}\n\n.chatForm {\n\toverflow: hidden;\n\theight: 75px;\n\tmargin: 10px 0 0 0;\n}\n\n.videoBox {\n\tfloat: left;\n\twidth: 400px;\n\theight: 100%;\n\tposition: relative;\n}\n\n.video {\n\theight: 45%;\n}\n\n.videoBox .video:nth-of-type(2) {\n\tposition: absolute;\n\tbottom: 0;\n\twidth: 100%;\n}\n\n.chatBox {\n\tfloat: left;\n\twidth: 600px;\n\theight: 100%;\n\tmargin: 0 0 0 15px;\n\tposition: relative;\n}\n\n.edit {\n\toverflow: hidden;\n\theight: 75px;\n\tbox-sizing: border-box;\n\tpadding: 1px 0 1px 0;\n}\n\n.edit textarea:focus {\n\toutline: none;\n}\n\n.btn {\n\twidth: 100px;\n\theight: 75px;\n\tborder: 2px solid transparent;\n\tborder-radius: 10px;\n\tfont-size: 2rem;\n\toutline: none;\n}\n\n.newButton {\n\tbackground-color: #5bc0de;\n\tborder-color: #46b8da;\n\tcolor: white;\n\tfloat: left;\n\tmargin-right: 10px;\n}\n\n.newButton:active {\n\tbackground-color: #31b0d5;\n    \n}\n\n.sendButton {\n\tbackground-color: #fff;\n\tborder-color: #ccc;\n\tfloat: right;\n\tmargin-left: 10px;\n}\n\n.sendButton:active {\n\tbackground-color: #d4d4d4;\n}\n\n.message {\n\tfont-weight: bold;\n\tfont-size: 1.4rem;\n\tposition: absolute;\n\ttop: -20px;\n\tleft: 4px;\n}\n\n.message p {\n\tmargin:  0 0;\n}\n\n.onlineNumber {\n\tfloat: right;\n\tfont-weight: bolder;\n\tfont-size: 1.4rem;\n\tmin-width: 40px;\n\tposition: absolute;\n\tright: 15px;\n\ttop: -20px;\n}\n\n.onlineNumber p::before {\n\tcontent: \"\\5F53\\524D\\5728\\7EBF\\4EBA\\6570\\FF1A\";\n\tfont-weight: bold;\n}\n\n.onlineNumber p {\n\tmargin:  0 0;\n}\n\n.forbidden {\n\tcursor: not-allowed;\n\tcolor: #333;\n\topacity: .65;\n\n}\n\n.btn.forbidden:active {\n\tbackground-color: #fff;\n}\n\n.edit textarea {\n\tfont-size: 1.7rem;\n\tbox-sizing: border-box;\n\theight: 73px;\n\tpadding: 4px 4px 4px 4px;\n\tborder-color: #ccc;\n\tresize: none;\n\toverflow-y: scroll;\n}\n\n.chat {\n\tfont-size: 1.6rem;\n}\n\n.chat p {\n\tline-height: 2rem;\n}\n\n.you {\n\tcolor: rgba(49, 105, 245, 1);\n\tfont-weight: bold;\n}\n\n.stranger {\n\tcolor: rgba(229, 42, 34, 1);\n\tfont-weight: bold;\n}", ""]);
 
 	// exports
 

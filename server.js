@@ -26,6 +26,7 @@
 	io.on('connection', function(socket) {
 		//刚进来时为不匹配任何人的状态
 		suspending.add(socket.id);
+		//关闭页面
 		socket.on('disconnect', function() {
 			suspending.delete(socket.id);
     		let temp = chatting[socket.id];
@@ -50,9 +51,7 @@
   			suspending.delete(socket.id);
 			while (waiting.length > 0) {
 				let id = waiting.shift();
-				console.log(id);
 				if (io.sockets.connected[id] && id != socket.id) {
-					console.log("ok");
 					chatting[socket.id] = id;
 					chatting[id] = socket.id;
 					io.sockets.connected[chatting[socket.id]].emit('finded');
@@ -67,9 +66,7 @@
 			}
   		})
   		//与当前陌生人断开
-  		socket.on('disconnect chat', function() {
-  			io.sockets.connnected[chatting[socket.id]].emit('chat over');
-  			socket.emit('chat over');
+  		socket.on('chat over', function() {
   			let temp = chatting[socket.id];
     		if (temp) {
 	    		suspending.add(temp);

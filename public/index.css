@@ -21,7 +21,7 @@ textarea {
 #container {
 	box-sizing: border-box;
 	height: 100%;
-	padding: 40px 10px 150px 10px;
+	padding: 60px 10px 150px 10px;
 	overflow: hidden;
 	min-width: 1100px;
 }
@@ -38,6 +38,7 @@ textarea {
 	border: 1px solid #ccc;
 	border-radius: 5px;
 	padding: 0 10px 10px 10px;
+	overflow-y: auto;
 }
 
 .chatForm {
@@ -68,12 +69,14 @@ textarea {
 	width: 600px;
 	height: 100%;
 	margin: 0 0 0 15px;
+	position: relative;
 }
 
 .edit {
-	overflow-y: scroll;
+	overflow: hidden;
 	height: 75px;
 	box-sizing: border-box;
+	padding: 1px 0 1px 0;
 }
 
 .edit textarea:focus {
@@ -116,7 +119,13 @@ textarea {
 .message {
 	font-weight: bold;
 	font-size: 1.4rem;
-	float: left;
+	position: absolute;
+	top: -20px;
+	left: 4px;
+}
+
+.message p {
+	margin:  0 0;
 }
 
 .onlineNumber {
@@ -124,11 +133,18 @@ textarea {
 	font-weight: bolder;
 	font-size: 1.4rem;
 	min-width: 40px;
+	position: absolute;
+	right: 15px;
+	top: -20px;
 }
 
 .onlineNumber p::before {
 	content: "当前在线人数：";
 	font-weight: bold;
+}
+
+.onlineNumber p {
+	margin:  0 0;
 }
 
 .forbidden {
@@ -145,8 +161,27 @@ textarea {
 .edit textarea {
 	font-size: 1.7rem;
 	box-sizing: border-box;
-	height: 100%;
+	height: 73px;
 	padding: 4px 4px 4px 4px;
 	border-color: #ccc;
 	resize: none;
+	overflow-y: scroll;
+}
+
+.chat {
+	font-size: 1.6rem;
+}
+
+.chat p {
+	line-height: 2rem;
+}
+
+.you {
+	color: rgba(49, 105, 245, 1);
+	font-weight: bold;
+}
+
+.stranger {
+	color: rgba(229, 42, 34, 1);
+	font-weight: bold;
 }
