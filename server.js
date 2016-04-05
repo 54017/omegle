@@ -10,6 +10,7 @@
 
 	let online = 0,  //在线人数
 		waiting = [],   //待匹配的人，存储socket.id
+		suspending = new Set(), //处在不匹配任何人的人
 		chatting = {};	//已匹配的人，'1': '2', '2': '1'结构
 		//users = {};		//记录每个socket.id对应的socket (socket.io自己内部的socket.id是会变的所以需要自己保存引用)
 
@@ -23,25 +24,64 @@
 	});
 
 	io.on('connection', function(socket) {
-		++online;
-		//实时更新在线人数
-		io.emit('online number', online);
-		//如果有等待匹配的人，则匹配，否则加入等待队列
-		if (waiting.size > 0) {
-			let id = waiting.shift();
-			chatting[socket.id] = id;
-			chatting[id] = socket.id;
-		} else {
-			waiting.push(socket.id);
-		}
-		socket.on('disconnect', function(){
+		//刚进来时为不匹配任何人的状态
+		suspending.add(socket.id);
+		socket.on('disconnect', function() {
+			suspending.delete(socket.id);
+    		let temp = chatting[socket.id];
+    		if (temp) {
+	    		suspending.add(temp);
+	    		io.sockets.connected[temp].emit('chat over');
+	    		delete chatting[temp];
+	    		delete chatting[socket.id];
+    		}
+    		//实时更新在线人数
     		--online;
-    		delete chatting[socket.id];
+    		io.emit('online number', online);
   		});
   		socket.on('chat message', function(msg) {
-  			io.sockets.socket(chatting[socket.id]).emit({ message: msg, author: 'stranger' });
-  			socket.emit({ message: msg, author: 'You' });
+  			io.sockets.connected[chatting[socket.id]].emit('chat message', { message: msg, author: 'Stranger' });
+  			socket.emit('chat message', { message: msg, author: 'You' });
   		});
+  		socket.on('find stranger', function() {
+  			//如果有等待匹配的人，则匹配，否则加入等待队列
+  			let flag = 0; //判断是否匹配到陌生人
+  			//从不匹配任何人的状态里删掉
+  			suspending.delete(socket.id);
+			while (waiting.length > 0) {
+				let id = waiting.shift();
+				console.log(id);
+				if (io.sockets.connected[id] && id != socket.id) {
+					console.log("ok");
+					chatting[socket.id] = id;
+					chatting[id] = socket.id;
+					io.sockets.connected[chatting[socket.id]].emit('finded');
+					socket.emit('finded');
+					flag = 1
+					break;
+				}
+			}
+			//如果未匹配成果则加入等待队列
+			if (!flag && !chatting[socket.id]) {
+				waiting.push(socket.id);
+			}
+  		})
+  		//与当前陌生人断开
+  		socket.on('disconnect chat', function() {
+  			io.sockets.connnected[chatting[socket.id]].emit('chat over');
+  			socket.emit('chat over');
+  			let temp = chatting[socket.id];
+    		if (temp) {
+	    		suspending.add(temp);
+	    		suspending.add(socket.io);
+	    		io.sockets.connected[temp].emit('chat over');
+	    		delete chatting[temp];
+	    		delete chatting[socket.id];
+    		}
+  		});
+  		//实时更新在线人数
+  		++online;
+		io.emit('online number', online);
 	});
 
 

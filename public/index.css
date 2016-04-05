@@ -73,14 +73,10 @@ textarea {
 .edit {
 	overflow-y: scroll;
 	height: 75px;
-	border: 1px solid #ccc;
-	border-radius: 5px;
-	font-size: 1.7rem;
-	padding: 4px 5px 0 5px;
 	box-sizing: border-box;
 }
 
-.edit:focus {
+.edit textarea:focus {
 	outline: none;
 }
 
@@ -137,4 +133,20 @@ textarea {
 
 .forbidden {
 	cursor: not-allowed;
+	color: #333;
+	opacity: .65;
+
+}
+
+.btn.forbidden:active {
+	background-color: #fff;
+}
+
+.edit textarea {
+	font-size: 1.7rem;
+	box-sizing: border-box;
+	height: 100%;
+	padding: 4px 4px 4px 4px;
+	border-color: #ccc;
+	resize: none;
 }

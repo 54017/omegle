@@ -26,57 +26,74 @@
 	});
 
 	let ChatBox = React.createClass({
+		getInitialState: function() {
+			return { chat: [], connectState: '点击缘起开始聊天!', number: '', sendButtonText: '发送', startButtonText: '缘起', condition: false }
+		},
+		componentDidMount: function() {
+			let connected = '捕获到小伙伴，先打个招呼吧~';
+			//socket.io实时更新在线人数
+			socket.on('online number', function(number) {
+				this.setState({ number: number });
+			}.bind(this));
+
+			//socket.io监控聊天信息
+			socket.on('chat message', function(res) {
+				this.state.chat.push(res);
+				this.setState({ chat: this.state.chat });
+			}.bind(this));
+
+			//socket.io监控匹配成功事件
+			socket.on('finded', function() {
+				this.setState({ connectState: connected, condition: true });
+			}.bind(this));
+		},
+
+		//开始按钮点击回调事件
+		startClickCallback: function() {
+			let start = '缘起',
+				end = '缘灭',
+				init = '点击缘起开始聊天!',
+				connecting = '正在寻找小伙伴中...',
+				disconnected = '聊天结束，再见.';
+			//开始按钮缘起缘灭切换
+			if (this.state.startButtonText === start) {
+				socket.emit('find stranger');
+				this.setState({ startButtonText: end });
+			} else {
+				this.setState({ startButtonText: start });
+			}
+			//根据开始按钮的状态转换聊天框内提示语的状态
+			let	current = this.state.connectState;
+			if (current == init || current == disconnected) {
+				this.setState({ connectState: connecting });
+			} else {
+				this.setState({ connectState: disconnected });
+			}
+		},
 		render: function() {
 			return (
 				<div className="chatBox">
-					<ChatList />
-					<ChatForm />
+					<ChatList chat={ this.state.chat } connectState={ this.state.connectState} number={ this.state.number }/>
+					<ChatForm startButtonText={ this.state.startButtonText } sendButtonText={ this.state.sendButtonText } condition={ this.state.condition } startClickCallback={ this.startClickCallback } />
 				</div>
 			);
 		}
 	});
 
 	let ChatList = React.createClass({
-		getInitialState: function() {
-			return { chat: [], connectState: '点击缘起开始聊天!', number: '' }
-		},
-		componentDidMount: function() {
-			//socket.io实时更新在线人数
-			socket.on('online number', function(number) {
-				this.setState({ number: number });
-			}.bind(this));
-			//监控缘起缘灭button的点击事件
-			document.addEventListener('startClicked', function() {
-				let init = '点击缘起开始聊天!',
-					connecting = '正在寻找小伙伴中...',
-					connected = '捕获小伙伴，先打个招呼吧~',
-					disconnected = '聊天结束，再见.',
-					current = this.state.connectState;
-				if (current == init || current == disconnected) {
-					this.setState({ connectState: connecting });
-				} else {
-					this.setState({ connectState: disconnected });
-				}
-			}.bind(this));
-			//socket.io监控聊天
-			socket.on('chat message', function(res) {
-				this.state.chat.push(res);
-			});
-		},
-		componentWillUnmount: function() {
-			document.removeEventListener('startClicked');
-		},
 		render: function() {
-			let chatNodes = this.state.chat.map(function(chat) {
+			console.log("enter", this.props.chat);
+			let count = 0;
+			let chatNodes = this.props.chat.map(function(chat) {
 				return (
-					<Chat author={ chat.author } chat={ chat.message }/>
+					<Chat author={ chat.author } message={ chat.message } key={ ++count }/>
 				);
 			});
 			return (
 				<div className="chatList">
-					<ConnectState message={ this.state.connectState } />
-					<OnlineNumber number={ this.state.number } />
-					<Chat />
+					<ConnectState message={ this.props.connectState } />
+					<OnlineNumber number={ this.props.number } />
+					{ chatNodes }
 				</div>
 			);
 		}
@@ -104,37 +121,28 @@
 
 	let ChatForm = React.createClass({
 		getInitialState: function() {
-			return { sendButtonText: '发送', startButtonText: '缘起', condition: true };
+			return { text: '' };
 		},
-		clickCallback: function() {
-			let start = '缘起',
-				end = '缘灭';
-			if (this.state.startButtonText === start) {
-				this.setState({ startButtonText: end });
-			} else {
-				this.setState({ startButtonText: start });
-			}
-			document.dispatchEvent(new Event('startClicked'));
+		handleInput: function(e) {
+			this.setState({ text: e.target.value });
+		},
+		sendCallback: function() {
+			socket.emit('chat message', this.state.text);
+			this.setState({ text: '' });
 		},
 		render: function() {
 			return (
 				<div className="chatForm">
-					<StartButton text={ this.state.startButtonText } clickCallback= { this.clickCallback }/>
-					<SendButton text={ this.state.sendButtonText } condition={ this.state.condition } />
-					<EditableDiv />
+					<StartButton text={ this.props.startButtonText } startClickCallback={ this.props.startClickCallback }/>
+					<SendButton text={ this.props.sendButtonText } condition={ this.props.condition } sendCallback={ this.sendCallback } />
+					<div className="edit">
+						<textarea value={ this.state.text } onChange={ this.handleInput }></textarea>
+					</div>
 				</div>
 			);
 		}
 	});
 
-	let EditableDiv = React.createClass({
-		render: function() {
-			return (
-				<div className="edit" contentEditable>
-				</div>
-			);
-		}
-	});
 
 	let Chat = React.createClass({
 		render: function() {
@@ -185,7 +193,7 @@
 
 	let StartButton = React.createClass({
 		handleClick: function() {
-			this.props.clickCallback();
+			this.props.startClickCallback();
 		},
 		render: function() {
 			return (
@@ -196,11 +204,17 @@
 
 	let SendButton = React.createClass({
 		handleClick: function() {
-			socket.emit('')
+			if (this.props.condition) {
+				this.props.sendCallback();
+			}
 		},
 		render: function() {
+			let className = 'sendButton btn';
+			if (!this.props.condition) {
+				className = className + ' forbidden';
+			}
 			return (
-				<button className='sendButton btn' onClick={ this.handleClick }>{ this.props.text }</button>
+				<button className={ className } onClick={ this.handleClick }>{ this.props.text }</button>
 			);
 		}
 	})
