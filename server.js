@@ -12,7 +12,6 @@
 		waiting = [],   //待匹配的人，存储socket.id
 		suspending = new Set(), //处在不匹配任何人的人
 		chatting = {};	//已匹配的人，'1': '2', '2': '1'结构
-		//users = {};		//记录每个socket.id对应的socket (socket.io自己内部的socket.id是会变的所以需要自己保存引用)
 
 	http.listen(3000);
 
@@ -40,10 +39,12 @@
     		--online;
     		io.emit('online number', online);
   		});
+
   		socket.on('chat message', function(msg) {
   			io.sockets.connected[chatting[socket.id]].emit('chat message', { message: msg, author: 'Stranger' });
   			socket.emit('chat message', { message: msg, author: 'You' });
   		});
+
   		socket.on('find stranger', function() {
   			//如果有等待匹配的人，则匹配，否则加入等待队列
   			let flag = 0; //判断是否匹配到陌生人
@@ -54,8 +55,8 @@
 				if (io.sockets.connected[id] && id != socket.id) {
 					chatting[socket.id] = id;
 					chatting[id] = socket.id;
-					io.sockets.connected[chatting[socket.id]].emit('finded');
-					socket.emit('finded');
+					io.sockets.connected[id].emit('finded', true); //true 发offer／false 发 answer
+					socket.emit('finded', false);
 					flag = 1
 					break;
 				}
@@ -65,6 +66,7 @@
 				waiting.push(socket.id);
 			}
   		})
+
   		//与当前陌生人断开
   		socket.on('chat over', function() {
   			let temp = chatting[socket.id];
@@ -76,6 +78,22 @@
 	    		delete chatting[socket.id];
     		}
   		});
+
+  		//接收ice candidate 信息
+  		socket.on('ice candidate', function(candidate) {
+  			io.sockets.connected[chatting[socket.id]].emit('ice candidate', candidate);
+  		});
+
+  		//转发answer
+  		socket.on('send answer', function(answer) {
+  			io.sockets.connected[chatting[socket.id]].emit('get answer', answer);
+  		});
+
+  		socket.on('send offer', function(offer) {
+  			io.sockets.connected[chatting[socket.id]].emit('get offer', offer);
+  		});
+
+
   		//实时更新在线人数
   		++online;
 		io.emit('online number', online);

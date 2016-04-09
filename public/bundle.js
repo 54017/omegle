@@ -56,23 +56,16 @@
 
 		let io = __webpack_require__(163);
 
-		let socket = io();
+		let socket = io(),
+		    peerConnection;
+		let config = {
+			iceServers: [{ url: "stun:23.21.150.121" }, { url: "stun:stun.1.google.com:19302" }]
+		};
+		let PeerConnection = window.PeerConnection || window.webkitPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+		peerConnection = new PeerConnection(null); //没有stun服务器，局域网内通讯
 
 		let ChatRoom = React.createClass({
 			displayName: 'ChatRoom',
-
-			render: function () {
-				return React.createElement(
-					'div',
-					{ id: 'chatRoom' },
-					React.createElement(VideoBox, null),
-					React.createElement(ChatBox, null)
-				);
-			}
-		});
-
-		let ChatBox = React.createClass({
-			displayName: 'ChatBox',
 
 			getInitialState: function () {
 				return { chat: [], connectState: '点击缘起开始聊天!', number: '', sendButtonText: '发送', startButtonText: '缘起', condition: false };
@@ -94,9 +87,43 @@
 				}.bind(this));
 
 				//socket.io监控匹配成功事件
-				socket.on('finded', function () {
+				socket.on('finded', function (res) {
 					this.setState({ connectState: connected, condition: true });
+					if (res) {
+						let options = {
+							offerToReceiveAudio: false,
+							offerToReceiveVideo: true
+						};
+						peerConnection.createOffer(function (offer) {
+							peerConnection.setLocalDescription(offer);
+							socket.emit('send offer', peerConnection.localDescription);
+						}, function (e) {
+							console.log("error: ", e);
+						}, options);
+					}
 				}.bind(this));
+				//接收到offer
+				socket.on('get offer', function (res) {
+					console.log("remote offer", res);
+					peerConnection.setRemoteDescription(new RTCSessionDescription(res), function () {
+						peerConnection.createAnswer(function (answer) {
+							peerConnection.setLocalDescription(answer);
+							socket.emit('send answer', answer);
+						}, function (e) {
+							console.log("create answer fail", e);
+						});
+					});
+				});
+
+				//接收到answer
+				socket.on('get answer', function (res) {
+					console.log("get answer");
+					peerConnection.setRemoteDescription(new RTCSessionDescription(res), function () {
+						console.log("get answer ok");
+					}, function (e) {
+						console.log("get answer fail", e);
+					});
+				});
 
 				//监控对方断开连接的情况
 				socket.on('chat over', function () {
@@ -112,8 +139,8 @@
 				    disconnected = '聊天结束，再见.';
 
 				//开始按钮缘起缘灭切换
-				if (this.state.startButtonText === start) {
-					this.setState({ chat: [], connectState: connecting, startButtonText: end });
+				if (!this.state.condition) {
+					this.setState({ connectState: connecting, startButtonText: end });
 					socket.emit('find stranger');
 				} else {
 					socket.emit('chat over');
@@ -123,11 +150,16 @@
 			render: function () {
 				return React.createElement(
 					'div',
-					{ className: 'chatBox' },
-					React.createElement(ConnectState, { message: this.state.connectState }),
-					React.createElement(OnlineNumber, { number: this.state.number }),
-					React.createElement(ChatList, { chat: this.state.chat }),
-					React.createElement(ChatForm, { startButtonText: this.state.startButtonText, sendButtonText: this.state.sendButtonText, condition: this.state.condition, startClickCallback: this.startClickCallback })
+					{ id: 'chatRoom' },
+					React.createElement(VideoBox, null),
+					React.createElement(
+						'div',
+						{ className: 'chatBox' },
+						React.createElement(ConnectState, { message: this.state.connectState }),
+						React.createElement(OnlineNumber, { number: this.state.number }),
+						React.createElement(ChatList, { chat: this.state.chat }),
+						React.createElement(ChatForm, { startButtonText: this.state.startButtonText, sendButtonText: this.state.sendButtonText, condition: this.state.condition, startClickCallback: this.startClickCallback })
+					)
 				);
 			}
 		});
@@ -248,8 +280,8 @@
 				return React.createElement(
 					'div',
 					{ className: 'videoBox' },
-					React.createElement(Video, null),
-					React.createElement(Video, null)
+					React.createElement(Video, { owner: 'stranger' }),
+					React.createElement(Video, { owner: 'you' })
 				);
 			}
 		});
@@ -258,26 +290,49 @@
 			displayName: 'Video',
 
 			componentDidMount: function () {
-				/*let getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-	   if (getUserMedia) {
-	   	getUserMedia.call(navigator, { video: false, audio: false }, function(localMediaStream) {
-	   		let video = document.querySelectorAll('video')[1];
-	   		video.src = window.URL.createObjectURL(localMediaStream);
-	   		video.onloadedmetadata = function(e) {
-	         		};
-	   	}, function(e) {
-	   		console.log("error: ", e);
-	   	});
-	   } else {
-	   	alert("你的浏览器不支持WebRTC");
-	   	return;
-	   }*/
+				//自己的摄像头或者别人的摄像头
+				if (this.refs.you) {
+					let getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+					if (getUserMedia) {
+						getUserMedia.call(navigator, { video: true, audio: false }, function (localMediaStream) {
+							let video = this.refs.you;
+							video.src = window.URL.createObjectURL(localMediaStream);
+							peerConnection.addStream(localMediaStream);
+							video.onloadedmetadata = function (e) {};
+						}.bind(this), function (e) {
+							console.log("error: ", e);
+						});
+					} else {
+						alert("你的浏览器不支持WebRTC");
+						return;
+					}
+				} else {
+
+					//当ICE Server添加被添加到该peerConnection后触发
+					peerConnection.onicecandidate = function (e) {
+						if (!e || !e.candidate) {
+							return;
+						}
+						console.log('emit ice candidate', e.candidate);
+						socket.emit('ice candidate', e.candidate); //信令机制传递网络信息
+					};
+
+					peerConnection.onaddstream = function (e) {
+						console.log("onaddstream");
+						this.refs.stranger.src = window.URL.createObjectURL(e.stream);
+					}.bind(this);
+
+					socket.on('ice candidate', function (res) {
+						console.log("xxxx");
+						peerConnection.addIceCandidate(new RTCIceCandidate(res));
+					});
+				}
 			},
 			render: function () {
 				return React.createElement(
 					'div',
 					{ className: 'video' },
-					React.createElement('video', { autoPlay: true })
+					React.createElement('video', { autoPlay: true, ref: this.props.owner })
 				);
 			}
 		});
