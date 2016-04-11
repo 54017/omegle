@@ -11,7 +11,7 @@
 
 	let io = require('./socket.js');
 
-	let socket = io(), peerConnection;
+	let socket = io(), peerConnection, localStream;
 	let config = {
 		iceServers: [
 				{url: "stun:23.21.150.121"},
@@ -20,7 +20,6 @@
 	};
 	let PeerConnection = window.PeerConnection || window.webkitPeerConnection || 
         window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
-    peerConnection = new PeerConnection(null); //没有stun服务器，局域网内通讯
 
 
 	let ChatRoom = React.createClass({
@@ -87,6 +86,8 @@
 			//监控对方断开连接的情况
 			socket.on('chat over', function() {
 				this.setState({ connectState: disconnected, condition: false, startButtonText: start });
+				peerConnection.close();
+				document.querySelector('video').src = null;
 			}.bind(this));
 		},
 
@@ -100,10 +101,30 @@
 			//开始按钮缘起缘灭切换
 			if (!this.state.condition) {
 				this.setState({ connectState: connecting, startButtonText: end });
+				peerConnection = new PeerConnection(null); //没有stun服务器，局域网内通讯
+				peerConnection.addStream(localStream);     //添加本地媒体流
+				//当ICE Server添加被添加到该peerConnection后触发
+                peerConnection.onicecandidate = function(e) {
+                	if (!e || !e.candidate) {
+                		return;
+                	}
+                	socket.emit('ice candidate', e.candidate); //信令机制传递网络信息
+                };
+
+                peerConnection.onaddstream = function(e) {
+                	console.log("onaddstream");
+                	document.querySelector('video').src = window.URL.createObjectURL(e.stream);
+                }.bind(this);
+
+                socket.on('ice candidate', function(res) {
+                	peerConnection.addIceCandidate(new RTCIceCandidate(res));
+                });
 				socket.emit('find stranger');
 			} else {
+				document.querySelector('video').src = null;
 				socket.emit('chat over');
-				this.setState({ connectState: disconnected, startButtonText: start, condition: false });
+				peerConnection.close();
+				this.setState({ connectState: disconnected, startButtonText: start, condition: false });	
 			}
 		},
 		render: function() {
@@ -223,9 +244,7 @@
 					getUserMedia.call(navigator, { video: true, audio: false }, function(localMediaStream) {
 						let video = this.refs.you;
 						video.src = window.URL.createObjectURL(localMediaStream);
-						peerConnection.addStream(localMediaStream);
-						video.onloadedmetadata = function(e) {
-		        		};
+						localStream = localMediaStream;
 					}.bind(this), function(e) {
 						console.log("error: ", e);
 					});
@@ -234,25 +253,9 @@
 					return;
 				}
 			} else {
-
-                //当ICE Server添加被添加到该peerConnection后触发
-                peerConnection.onicecandidate = function(e) {
-                	if (!e || !e.candidate) {
-                		return;
-                	}
-                	console.log('emit ice candidate', e.candidate);
-                	socket.emit('ice candidate', e.candidate); //信令机制传递网络信息
-                };
-
-                peerConnection.onaddstream = function(e) {
-                	console.log("onaddstream");
-                	this.refs.stranger.src = window.URL.createObjectURL(e.stream);
-                }.bind(this);
-
-                socket.on('ice candidate', function(res) {
-                	console.log("xxxx");
-                	peerConnection.addIceCandidate(new RTCIceCandidate(res));
-                });
+				this.refs.stranger.onended = function() {
+					console.log("asddasdasdasdiqwodoqwndoqnwd");
+				}
 			}
 		},
 		render: function() {
